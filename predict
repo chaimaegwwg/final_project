@@ -1,0 +1,68 @@
+class Solution(object):
+    def predictTheWinner(self, nums):
+        left = 0
+        right = 0
+        n = len(nums)
+        # copy = nums
+        l =0 , l2 =0
+        count = 0
+        n1 =0
+        n2 =0
+        def tree(nums,l,count): 
+            n1 += nums[1] - l
+            n2 += nums[len(nums)] - l
+            # if n1 > n2:
+            #     return n1
+            # if n2>n1:
+            #     return n2
+            count +=1
+            if (n1 > 0 or n2 > 0 ) and (count %2 == 0) and (len(nums) == 0):
+                return True
+            tree(nums[1:].copy(),nums[1].copy())
+            tree(nums[:-1].copy(),nums[len(nums).copy()])
+        tree(nums,l,count)
+
+
+
+s = Solution()
+# nums = [1,5,233,7]
+# n = nums[1:]
+# print(n)
+res = s.predictTheWinner([1,5,233,7])
+print(res)
+
+
+
+        # player1 = 0
+        # player2 = 0
+        # great = 0
+        # check = 1
+        # fr = 0
+        # le = len(nums) -1
+        # b = nums[le]
+        # # print("nnn",b)
+        # # print("here",le)
+        # for _ in range(len(nums)):
+        #     x = 0
+        #     le = len(nums) -1
+        #     if nums[x] >= nums[le]:
+        #         great = nums[x]
+        #         # print("first",great)
+        #         fr = 0
+        #     else:
+        #         great = nums[le]
+        #         # print("second",great)
+        #         fr = -1
+        #     if check == 1:
+        #         print("f",great)
+        #         player1 += great
+        #         nums.pop(fr)
+        #         check = 0
+        #     else:
+        #         print("S",great)
+        #         player2 += great
+        #         nums.pop(fr)
+        #         check = 1
+        # if player1 >= player2:
+        #     return True
+        # return False
