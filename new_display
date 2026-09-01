@@ -105,7 +105,7 @@ def func():
 
         max_cap = max_drones
         if name == path[0] or name == path[-1]:
-            max_cap = float('inf')
+            max_cap = 1
         zones[name] = Zones(name, x, y, max_cap)
     zones[path[0]].current_drones = nb_drones
     all_drones = []
