@@ -72,20 +72,12 @@ def make_a_dictionary():
         for line in lines:
             line = line.split('#')[0].strip()
 
-
-            if not line or ":" not in line:
-                if ":" not in line and line:
-                    print("Enter key correctly")
-                    sys.exit()
-
-
             if not line:
                 continue
+
             if ":" not in line:
                 print("Enter key correctly")
                 sys.exit()
-                # if ":" not in line and line:
-                #     print("yes")
 
             key , value= line.split(":", 1)
             key = key.lower().strip()
@@ -103,71 +95,138 @@ def make_a_dictionary():
                 dic[key] = [value]
     dic["prefix_v"] = [check_prefix]
     return dic
+
 def check_connection(connection, names):
     dic = {}
     try:
         for x in connection:
-            x = x.strip().split("-")
-            x[0] = x[0].strip()
-            x[1] = x[1].strip()
-            if x[0] not in names:
-                raise ValueError("Invalid name")
-            if x[1] not in names:
-                if "[" not in x[1] and "]" not in x[1]:
-                    raise ValueError(f"Entre the [ ] or {x[1]} not here")
-                c = x[1].count("]")
-                c1 = x[1].count("[")
-                if c1 != 1 or c != 1:
-                    raise ValueError("Please check the [ ] if it correct")
-            
-                if not "=" in x[1] or x[1].count("=") != 1:
-                    raise ValueError("Please enter = between max_link_capacity and the value")
-                pairs = re.findall(r'(\w+)\s*=\s*(\w+)', x[1])
-           
-                if not pairs or len(pairs[0]) != 2:
-                    raise ValueError("enter like this the values max_link_capacity = value")
-                max_name = pairs[0][0].strip()
-                if max_name != "max_link_capacity":
-                    raise ValueError("Invalid name [max_link_capacity=....] like that")
-                value_max = pairs[0][1].strip()
-                v = int(value_max)
-                if v < 0:
-                    raise ValueError("the value must be up than 0 (max_link_capacity)")
-                second_name = x[1].split("[")[0].strip()
-                if second_name not in names:
-                    raise ValueError("invalid second name")
+            line = x.strip()
+            if not line:
+                continue
 
-                dic.setdefault(x[0], []).append([second_name, v])
-                dic.setdefault(second_name, []).append([x[0], v])
+            # Check for unmatched or extra brackets
+            if line.count('[') > 1 or line.count(']') > 1:
+                raise ValueError("Invalid bracket structure in connection")
+
+            # Default values
+            attributes_part = ""
+
+            if "[" in line or "]" in line:
+                if not (line.endswith("]") and "[" in line):
+                    raise ValueError("Attributes must be at the end enclosed in [...]")
+
+                connection_part, attributes_part = line.split("[", 1)
+                connection_part = connection_part.strip()
+                attributes_part = attributes_part.rstrip("]").strip()
             else:
-          
-                dic.setdefault(x[0], []).append([x[1], 1])
-                dic.setdefault(x[1], []).append([x[0], 1])
-            #     # x[1] = second_name[0].strip()
-            #     # if x[1] not in names:
-            #     #     raise ValueError("invalid second name")
-            #     # # dic[x[0]] = [x[1],v]
-            #     # dic.setdefault(x[0],[]).append([x[1],v])
-            #     # dic.setdefault(x[1],[]).append([x[0],v])
-            # else:
-            #     if key_meta == "max_link_capacity":
-            #             v = int(val_meta)
-            #             if v < 0: raise ValueError("Capacity must be > 0")
-            #         else:
-            #             raise ValueError("Use [max_link_capacity=X]")
-            #     if x[1] not in names:
-            #         raise ValueError("Invalid second name")
-            #     dic.setdefault(node1, []).append([node2, v])
-            #     dic.setdefault(node2, []).append([node1, v])
-            #     # dic.setdefault(x[0],[]).append([x[1],1])
-            #     # dic.setdefault(x[1],[]).append([x[0],1])
-               
-            # n+=1
-      
+                connection_part = line
+
+            # Validate link format: name1-name2
+            parts = connection_part.split("-")
+            if len(parts) != 2:
+                raise ValueError("Connection must be in format: name1-name2")
+
+            start, end = parts[0].strip(), parts[1].strip()
+
+            if start not in names or end not in names:
+                raise ValueError(f"Unknown hub in connection: {connection_part}")
+
+            if start == end:
+                raise ValueError("A connection cannot connect a hub to itself")
+
+            max_link_capacity = 1  # Default capacity
+
+            # Strict metadata validation
+            if attributes_part:
+                # Catch invalid content like [ dhnothinghere ] without '='
+                if "=" not in attributes_part:
+                    raise ValueError(f"Invalid connection attribute: [{attributes_part}]")
+
+                pairs = re.findall(r'(\w+)\s*=\s*([\w-]+)', attributes_part)
+
+                # Reject if there are '=' symbols that failed to match valid key=value pairs
+                if attributes_part.count('=') != len(pairs):
+                    raise ValueError("Invalid metadata format in connection")
+
+
+                
+                clean_attr = re.sub(r'\s*=\s*', '=', attributes_part.strip())
+                parsed_text = " ".join(f"{k.strip()}={v.strip()}" for k, v in pairs)
+                original_normalized = " ".join(clean_attr.split())
+
+                # # Reconstruct and compare to detect extra junk/injected words
+                # parsed_text = " ".join(f"{k} = {v}" for k, v in pairs)
+                # original_normalized = " ".join(attributes_part.replace("=", " = ").split())
+
+                if parsed_text.lower() != original_normalized.lower():
+                    raise ValueError(f"Invalid extra tokens or junk in metadata: [{attributes_part}]")
+
+                for key, val in pairs:
+                    key = key.lower().strip()
+                    if key != "max_link_capacity":
+                        raise ValueError(f"Invalid connection attribute key: {key}")
+
+                    try:
+                        max_link_capacity = int(val)
+                    except ValueError:
+                        raise ValueError("max_link_capacity must be an integer")
+
+                    if max_link_capacity <= 0:
+                        raise ValueError("max_link_capacity must be greater than 0")
+
+            # Store connections in both directions
+            dic.setdefault(start, []).append([end, max_link_capacity])
+            dic.setdefault(end, []).append([start, max_link_capacity])
+
     except ValueError as e:
-        print("Error",e)
-        return False    
+        print("Error", e)
+        return False
+
     return dic
+# def check_connection(connection, names):
+#     dic = {}
+#     try:
+#         for x in connection:
+#             x = x.strip().split("-")
+#             x[0] = x[0].strip()
+#             x[1] = x[1].strip()
+#             if x[0] not in names:
+#                 raise ValueError("Invalid name")
+#             if x[1] not in names:
+#                 if "[" not in x[1] and "]" not in x[1]:
+#                     raise ValueError(f"Entre the [ ] or {x[1]} not here")
+#                 c = x[1].count("]")
+#                 c1 = x[1].count("[")
+#                 if c1 != 1 or c != 1:
+#                     raise ValueError("Please check the [ ] if it correct")
+            
+#                 if not "=" in x[1] or x[1].count("=") != 1:
+#                     raise ValueError("Please enter = between max_link_capacity and the value")
+#                 pairs = re.findall(r'(\w+)\s*=\s*(\w+)', x[1])
+           
+#                 if not pairs or len(pairs[0]) != 2:
+#                     raise ValueError("enter like this the values max_link_capacity = value")
+#                 max_name = pairs[0][0].strip()
+#                 if max_name != "max_link_capacity":
+#                     raise ValueError("Invalid name [max_link_capacity=....] like that")
+#                 value_max = pairs[0][1].strip()
+#                 v = int(value_max)
+#                 if v <= 0:
+#                     raise ValueError("the value must be up than 0 (max_link_capacity)")
+#                 second_name = x[1].split("[")[0].strip()
+#                 if second_name not in names:
+#                     raise ValueError("invalid second name")
+
+#                 dic.setdefault(x[0], []).append([second_name, v])
+#                 dic.setdefault(second_name, []).append([x[0], v])
+#             else:
+#                 dic.setdefault(x[0], []).append([x[1], 1])
+#                 dic.setdefault(x[1], []).append([x[0], 1])
+  
+#     except ValueError as e:
+#         print("Error",e)
+#         return False    
+#     return dic
 
 
 
@@ -179,14 +238,17 @@ def check_start_end(start_hub):
     lst_color = ["green", "yellow", "red", "blue", "gray"]
     lst_zones = ["restricted","normal","priority","blocked"]
     try:
+        if len(arg) < 3:
+            raise ValueError("Missing name or coordinates")
         name = arg[0].strip().replace('"','')
        
-        if not name.isalpha():
+        if not name.replace('_', '').isalnum():
+            print("herrrrrrrrr")
             raise ValueError("please inter name as string :)")
         elif "-" in name:
             raise ValueError("Don't write dashes on the name is forbids :)")
         start = arg[1].strip().replace('"','')
-        start = int(start)
+        start = float(start)
         try:
             if arg[3] and not "[" in arg[3]:
                 print(arg[3])
@@ -196,7 +258,7 @@ def check_start_end(start_hub):
             sys.exit()
         
         end = arg[2].strip().replace('"','')
-        end = int(end)
+        end = float(end)
         
         if "[" not in start_hub and "]" not in start_hub or start_hub.count('[') > 1 or start_hub.count(']') > 1:
             raise ValueError("Please enter the form between [ ]")
@@ -220,15 +282,19 @@ def check_start_end(start_hub):
             raise ValueError("Please enter the color")
         if not isinstance(value, str) or not isinstance(metadata,str):
             raise ValueError("Enter the color and the value as string")
-        if metadata == "color" and value not in lst_color:
-            raise ValueError("Please enter one of this colors green or yellow, red, blue, gray")
+        if metadata == "color":
+            if value not in lst_color:
+                print(f"Warning: Unknown color '{value}', default color will be used.")
         index = start_hub.find(']')
-        if index != -1:
-            for n in start_hub[index+1:]:
-                raise ValueError("Stop there")
+        if index != -1 and start_hub[index+1:].strip():
+            raise ValueError("Stop there: invalid trailing text after ']'")
 
     except ValueError as e:
         print('\033[91m',"Error",e,'\033[0m')
+        sys.exit()
+
+
+
 def check_hub(lines):
     dic = make_a_dictionary()
     the_same_name = []
@@ -241,7 +307,8 @@ def check_hub(lines):
 
     for line in lines:
         line = line.strip()
-        if not line: continue
+        if not line: 
+            continue
         
         try:
             parts = re.findall(r'[^ \[]+|\[[^\]]*\]', line)
@@ -314,6 +381,7 @@ def check_validation():
     dic = make_a_dictionary()
     if dic["prefix_v"][0] > 0:
         print("Error")
+        sys.exit()
 
     nb_drones = dic.get("nb_drones")
 
@@ -336,10 +404,13 @@ def check_validation():
     
     if len(dic["start_hub"]) > 1:
         print("You can't write start_hub more than one")
+        sys.exit()
     if len(dic["nb_drones"]) > 1:
         print("You can't write nb_drones more than one")
+        sys.exit()
     if len(dic["end_hub"]) > 1:
         print("You can't write end_hub more than one")
+        sys.exit()
 
     start_hub = dic["start_hub"][0].strip()
     check_start_end(start_hub)
@@ -347,177 +418,8 @@ def check_validation():
     check_start_end(end_hub)
     info = check_hub(dic["hub"])
     if not info:
-        return
+        return None
     return nb_drones
 
 check_validation()
 
-
-
-
-
-
-
-
-
-
-
-
-# def check_hub(lines):
-#     dic = make_a_dictionary()
-#     the_same_name = []
-#     dic_info = {}
-#     for line in lines:
-#         check = 0
-#         c = 0
-#         d = 0
-#         zones = ["priority", "normal", "blocked","restricted"]
-#         colors = ["green", "yellow","red", "blue","gray"]
-#         try:
-         
-#             if "[" in line:
-#                 if line.count("]") > 1 or line.count("[") > 1 or "]" not in line:
-#                     raise ValueError("Please enter the form like that [   ] on hub") 
-#                 line1, line2 = line.split("[")
-#                 line = line1.split()
-#                 line.append("["+line2)
-#                 name = line[0]
-#                 if not isinstance(name, str):
-#                     raise ValueError("Please enter the name as string")
-#                 if "-" in name:
-#                     raise ValueError("Don't write dashes on the name is forbids :)")
-#                 star_t = line[1]
-#                 start = int(star_t)
-#                 if not isinstance(start, int):
-#                     raise ValueError("Please enter the start as int")
-#                 en_d = line[2]
-#                 end = int(en_d)
-#                 if not isinstance(end, int):
-#                     raise ValueError("Please enter the end as int")
-#                 # print(line)
-#                 # print(name)
-#                 if name in the_same_name:
-#                     raise ValueError("don't use the same name")
-#                 the_same_name.append(name)
-#                 if name not in dic_info:
-#                     dic_info[name] = {}
-#                 meta = str(line[3])
-#                 # print(len(metadata))
-#                 che_k = meta.split("=")
-                
-#                 chek = che_k[-1]
-#                 chek = chek.split()
-#                 for i in chek:
-#                     if not i.isspace():
-#                         if isinstance(i ,str) and i != "]":
-#                             d = 1 
-#                     if d == 1 and isinstance(i ,str) and (i != "]"):
-#                         c += 1
-#                 if c > 1:
-#                     raise ValueError("don't do more than 2 value")
-                
-                
-#                 # print(name)
-#                 dic_info[name]["name"] = name
-#                 dic_info[name]["position"] =(star_t, en_d)
-#                 if len(meta.split("=")) == 2:
-#                     metadata = meta.split("=")
-#                     value = metadata[1].strip()
-#                     metadata = metadata[0].strip()
-#                     if metadata != "zone" and  metadata !="color" and metadata !="max_drones":
-#                         raise ValueError("Please enter one of this value zone or color or max_drones")
-#                     if metadata == "zone":
-#                         if value not in zones:
-#                             raise ValueError("Please enter one of this zone priority, normal, blocked, restricted")
-#                     if metadata == "color":
-#                             if value not in colors:
-#                                 raise ValueError("Please enter one of this colors : green , yellow, red , blue, gray")
-#                     if metadata == "max_drones":
-#                         value = int(value)
-#                         if value <= 0:
-#                             raise ValueError("Please the value must be up to the 0")
-#                     dic_info[name][metadata] = value
-
-
-#                 if len(meta.split("=")) == 3:
-#                     metadata = meta
-#                     metadata = metadata.strip().replace("[", "").replace("]", "")
-#                     pairs = re.findall(r'(\w+)\s*=\s*(\w+)', metadata)
-#                     for x in pairs:
-#                         metadata = x[0].strip()
-#                         value = x[1].strip()
-#                         if metadata != "zone" and  metadata !="color" and metadata !="max_drones":
-#                             raise ValueError("Please enter one of this value zone or color or max_drones")
-#                         if metadata == "zone":
-#                             if value not in zones:
-#                                 raise ValueError("Please enter one of this zone priority, normal, blocked, restricted")
-#                         if metadata == "color":
-#                             if value not in colors:
-#                                 raise ValueError("Please enter one of this colors : green , yellow, red , blue, gray")
-#                         if metadata == "max_drones":
-#                             mvalue = int(value)
-#                             if mvalue <= 0:
-#                                 raise ValueError("Please the value must be up to the 0")
-#                         dic_info[name][metadata] = value
-#                     if len(pairs) !=2:
-#                         raise ValueError("don't take the value empty")
-#                 if len(meta.split("=")) == 4:
-#                     metadata = meta
-#                     metadata = metadata.strip().replace("[", "").replace("]", "")
-#                     pairs = re.findall(r'(\w+)\s*=\s*(\w+)', metadata)
-#                     for x in pairs:
-#                         metadata = x[0].strip()
-#                         value = x[1].strip()
-#                         if metadata != "zone" and  metadata !="color" and metadata !="max_drones":
-#                             raise ValueError("Please enter one of this value zone or color or max_drones")
-#                         if metadata == "zone":
-#                             if value not in zones:
-#                                 raise ValueError("Please enter one of this zones : priority, normal, blocked, restricted")
-#                         if metadata == "color":
-#                             if value not in colors:
-#                                 raise ValueError("Please enter one of this colors : green , yellow, red , blue, gray")
-#                         if metadata == "max_drones":
-#                             mvalue = int(value)
-#                             if mvalue <= 0:
-#                                 raise ValueError("Please the value must be up to the 0")
-                            
-#                         dic_info[name][metadata] = value 
-#                     if len(pairs) != 3:
-#                             raise ValueError("don't take the value empty")
-#                 line = " ".join(line)
-#                 if line.count("]") > 1:
-#                     raise ValueError("you need to enter the form of meta like that [...]")
-#                 for x in line:
-#                     if x == "]":
-#                         check = 1
-#                     if check == 1 and x == "]" :
-#                         continue
-#                     if(x and check) and not x.isspace():
-#                         raise ValueError("please don't write after ]")    
-#             else:
-#                 name = line
-#                 if not isinstance(name, str):
-#                     raise ValueError("Please enter the name as string")
-#                 if "-" in name:
-#                     raise ValueError("Don't write dashes on the name is forbids :)")
-#                 start = line[1]
-#                 start = int(start)
-#                 if not isinstance(start, int):
-#                     raise ValueError("Please enter the start as int")
-#                 end = line[2]
-#                 end = int(end)
-#                 if not isinstance(end, int):
-#                     raise ValueError("Please enter the end as int")
-#                 #this i don't need this check
-  
-#         except ValueError as e:
-#             print("Error", e)
-#             return False
-#     the_same_name.extend(["hub","goal"])
-#     connection = check_connection(dic["connection"],the_same_name)
-#     if not connection:
-#         sys.exit()
-#         return False
-#     return dic_info,connection
-    
-#zone=restricted color=red 
