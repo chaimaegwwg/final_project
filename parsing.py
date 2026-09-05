@@ -165,7 +165,6 @@ def check_connection(connection, names):
                     key = key.lower().strip()
                     if key != "max_link_capacity":
                         raise ValueError(f"Invalid connection attribute key: {key}")
-
                     try:
                         max_link_capacity = int(val)
                     except ValueError:
@@ -183,53 +182,6 @@ def check_connection(connection, names):
         return False
 
     return dic
-# def check_connection(connection, names):
-#     dic = {}
-#     try:
-#         for x in connection:
-#             x = x.strip().split("-")
-#             x[0] = x[0].strip()
-#             x[1] = x[1].strip()
-#             if x[0] not in names:
-#                 raise ValueError("Invalid name")
-#             if x[1] not in names:
-#                 if "[" not in x[1] and "]" not in x[1]:
-#                     raise ValueError(f"Entre the [ ] or {x[1]} not here")
-#                 c = x[1].count("]")
-#                 c1 = x[1].count("[")
-#                 if c1 != 1 or c != 1:
-#                     raise ValueError("Please check the [ ] if it correct")
-            
-#                 if not "=" in x[1] or x[1].count("=") != 1:
-#                     raise ValueError("Please enter = between max_link_capacity and the value")
-#                 pairs = re.findall(r'(\w+)\s*=\s*(\w+)', x[1])
-           
-#                 if not pairs or len(pairs[0]) != 2:
-#                     raise ValueError("enter like this the values max_link_capacity = value")
-#                 max_name = pairs[0][0].strip()
-#                 if max_name != "max_link_capacity":
-#                     raise ValueError("Invalid name [max_link_capacity=....] like that")
-#                 value_max = pairs[0][1].strip()
-#                 v = int(value_max)
-#                 if v <= 0:
-#                     raise ValueError("the value must be up than 0 (max_link_capacity)")
-#                 second_name = x[1].split("[")[0].strip()
-#                 if second_name not in names:
-#                     raise ValueError("invalid second name")
-
-#                 dic.setdefault(x[0], []).append([second_name, v])
-#                 dic.setdefault(second_name, []).append([x[0], v])
-#             else:
-#                 dic.setdefault(x[0], []).append([x[1], 1])
-#                 dic.setdefault(x[1], []).append([x[0], 1])
-  
-#     except ValueError as e:
-#         print("Error",e)
-#         return False    
-#     return dic
-
-
-
 
 def check_start_end(start_hub):
     all_arg = []
@@ -346,9 +298,12 @@ def check_hub(lines):
                     raise ValueError(f"Metadata syntax error in: [{meta_content}]. Check your '=' usage.")
 
                 parsed_text = " ".join(f"{k}={v}" for k, v in pairs)
-                original = " ".join(meta_content.split())
+                original = re.sub(r'\s*=\s*', '=', meta_content.strip())
+
                 if parsed_text != original:
-                    raise ValueError(f"Invalid metadata syntax: [ ... ] Please don't add something you don't need it")
+                    raise ValueError(
+                        "Invalid metadata syntax: [ ... ] Please don't add something you don't need it"
+                    )
                 for k, v in pairs:
                     k = k.lower().strip()
                     v =  v.lower().strip()
@@ -421,5 +376,9 @@ def check_validation():
         return None
     return nb_drones
 
-check_validation()
-
+def sefty():
+    try:
+        check_validation()
+    except ValueError:
+        print("Error: may syntax")
+        sys.exit()

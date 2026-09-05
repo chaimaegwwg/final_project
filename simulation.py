@@ -145,7 +145,12 @@ def clean_paths(raw_paths: List[List[str]]) -> List[List[str]]:
 
 
 def func():
-    info, connection, paths = main()
+    result = main()
+
+    if not result:
+        return
+
+    info, connection, paths = result
     if not paths:
         print("Error: No valid paths found by pathfinding logic.")
         return
@@ -182,7 +187,7 @@ def func():
     cap_zones[start_node] = Zones(start_node, float("inf"))
     cap_zones[end_node] = Zones(end_node, float("inf"))
 
-    print("-------",connection)    
+
     cap_connections = {}
 
     for start, neighbors in connection.items():
@@ -252,6 +257,12 @@ def func():
     print(f"Drones reached goal: {reached_to_goal}/{nb_drones}")
     print(f"Total turns: {turn_counter}")
 
+def sefty():
+    try:
+        func()
+    except ValueError:
+        print("Error: may syntax")
+        sys.exit()
 
 if __name__ == "__main__":
     func()

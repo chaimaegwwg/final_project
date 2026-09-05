@@ -134,17 +134,6 @@ def main():
     dic = make_a_dictionary()
     v = (0, 0)
     d = (0, 0)
-    # for key, value in dic.items():
-    #     if key.strip() == "start_hub":
-    #         for x in value:
-    #             v_split = x.split()
-    #             start = (int(v_split[1]), int(v_split[2]))
-    #             v = start
-    #     if key.strip() == "end_hub":
-    #         for x in value:
-    #             d_split = x.split()
-    #             end = (int(d_split[1]), int(d_split[2]))
-    #             d = end
     start_name = None
     end_name = None
     start = None
@@ -164,7 +153,12 @@ def main():
             end_name = d_split[0]
             end = (int(d_split[1]), int(d_split[2]))
 
-    info, connection = check_hub(dic["hub"])
+    result = check_hub(dic["hub"])
+
+    if not result:
+        return None
+
+    info, connection = result
 
     grid, offset_r, offset_c = ft_info(info, start, end)
 
@@ -180,6 +174,13 @@ def main():
     # print("Found routes (sorted):", sorted_routes)
     return info, connection, sorted_routes
 
+
+def sefty():
+    try:
+        main()
+    except ValueError:
+        print("Error: may syntax")
+        sys.exit()
 
 if __name__ == "__main__":
     main()
