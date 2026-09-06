@@ -1,74 +1,11 @@
-# ===========================
-# VALID BASE MAP
-# ===========================
+# Easy Level 1: Simple linear path
+nb_drones: 0
 
-nb_drones: 5
+start_hub: start 0 0 [color=green]
+hub: waypoint1 1 0 [color=blue]
+hub: waypoint2 2 0 [color=blue]
+end_hub: goal 3 0 [color=red]
 
-start_hub: START 0 0 
-end_hub: END 10 10 [zone=priority]
-
-hub: A 1 1
-hub: B 2 2 [color=blue]
-hub: C 3 3 [max_drones=2]
-hub: D 4 4 [zone=restricted]
-
-connection: START-A
-connection: A-B [max_link_capacity=2]
-connection: B-C
-connection: C-D
-connection: D-END
-
-# ==========================================================
-# Uncomment ONE block at a time.
-# ==========================================================
-
-# ---------- Missing nb_drones ----------
-# (delete the nb_drones line)
-
-# ---------- Duplicate nb_drones ----------
-# nb_drones: 10
-
-# ---------- Duplicate start_hub ----------
-#start_hub: S2 20 20
-
-# ---------- Duplicate end_hub ----------
-#end_hub: E2 30 30
-
-# ---------- Duplicate hub ----------
-#hub: A 9 9
-
-# ---------- Duplicate coordinates ----------
-hub: X 1 1
-
-# ---------- Self connection ----------
-# connection: A-A
-
-# ---------- Duplicate connection ----------
-# connection: B-A
-
-# ---------- Unknown hub ----------
-# connection: A-Z
-
-# ---------- Invalid connection capacity ----------
-# connection: A-B [max_link_capacity=0]
-
-# ---------- Duplicate attribute ----------
-#hub: X 8 8 [color=red color=blue]
-
-# ---------- Invalid zone ----------
-# hub: X 8 8 [zone=flying]
-
-# ---------- Invalid max_drones ----------
-# hub: X 8 8 [max_drones=abc]
-
-# ---------- Invalid color type ----------
-# hub: X 8 8 [color=123]
-
-# ---------- Missing argument ----------
-#hub: X 1
-
-# ---------- Extra argument ----------
-#hub: X 1 2 hello
-
-# ---------- Misspelled directive ----------
-#hbu: X 1 2
+connection: start-waypoint1
+connection: waypoint1-waypoint2
+connection: waypoint2-goal

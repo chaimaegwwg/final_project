@@ -1,24 +1,44 @@
-from typing import Dict, List, Any
 from logic import PathFinder
 from parsing import check_validation
 from colors import color_node
+from typing import Any
 import sys
 
-capacity_info = "--capacity-info" in sys.argv
+
 class Zones:
-    def __init__(self, name, max_capacity):
+    def __init__(
+        self,
+        name: str,
+        max_capacity: int | float,
+    ) -> None:
         self.name = name
         self.max_capacity = max_capacity
         self.current_drones = 0
 
+
 class Connections:
-    def __init__(self, start, end, max_link_capacity):
+    def __init__(
+        self,
+        start: str,
+        end: str,
+        max_link_capacity: int,
+    ) -> None:
         self.start = start
         self.end = end
         self.max_link_capacity = max_link_capacity
         self.current_drones = 0
+
+
 class Drones:
-    def __init__(self, drone_id, info, path, zones_dict, connection_data,cap_connections):
+    def __init__(
+        self,
+        drone_id: int,
+        info: dict[str, dict[str, Any]],
+        path: list[str],
+        zones_dict: dict[str, Zones],
+        connection_data: dict[str, list[list[str | int]]],
+        cap_connections: dict[tuple[str, str], Connections],
+    ) -> None:
         self.drone_id = drone_id
         self.path = path
         self.info = info
@@ -27,39 +47,32 @@ class Drones:
         self.step = 0
         self.active = False
         self.reached_goal = False
-
         self.cap_connections = cap_connections
-
-
-        #for [zone=restricted]
         self.in_transit = False
         self.transit_turns_left = 0
         self.transit_target = ""
-        self.transit_link = None
+        self.transit_link: Connections | None = None
 
     def move_turn(self) -> str | None:
         if not self.active or self.reached_goal:
             return None
-        #here i choose the path through the step 
         current_node_name = self.path[self.step]
-
-
         end_node_name = self.path[-1]
         start_node_name = self.path[0]
-
-        # restricted zone 
         if self.in_transit:
             self.transit_turns_left -= 1
             if self.transit_turns_left == 0:
                 self.in_transit = False
 
                 if self.transit_link:
-                    self.transit_link.current_drones = max(0,self.transit_link.current_drones - 1)
+                    self.transit_link.current_drones = max(
+                        0, self.transit_link.current_drones - 1)
                     self.transit_link = None
 
                 if current_node_name not in (start_node_name, end_node_name):
                     prev_zone = self.cap_zones[current_node_name]
-                    prev_zone.current_drones = max(0, prev_zone.current_drones - 1)
+                    prev_zone.current_drones = max(
+                        0, prev_zone.current_drones - 1)
 
                 self.step += 1
                 if self.step >= len(self.path) - 1:
@@ -75,29 +88,22 @@ class Drones:
                 f"{color_node(current_node_name, self.info)}--"
                 f"{color_node(self.transit_target, self.info)}"
             )
-
-        # if it reached the goal it stop 
         if self.step + 1 >= len(self.path):
             self.reached_goal = True
             return None
         target_node_name = self.path[self.step + 1]
         target_z = self.cap_zones[target_node_name]
 
-        # get the connection
         link = self.cap_connections.get((current_node_name, target_node_name))
-        # print("------------------->",link.start,link.end,link.current_drones)
-
-        # Check connection capacity
         if link and link.current_drones >= link.max_link_capacity:
             return None
 
-        
-        # node capacity check
         if target_z.current_drones < target_z.max_capacity:
             if link:
                 link.current_drones += 1
-            #just here i check if it zone restricted
-            is_restricted = (self.info.get(target_node_name, {}).get("zone") == "restricted")
+            is_restricted = (
+                self.info.get(
+                    target_node_name, {}).get("zone") == "restricted")
             if is_restricted:
                 self.in_transit = True
                 self.transit_turns_left = 1
@@ -111,7 +117,6 @@ class Drones:
                     f"{color_node(target_node_name, self.info)}"
                 )
 
-            # here just -1 to the current drone that i go far away from it
             if current_node_name not in (start_node_name, end_node_name):
                 curr_z = self.cap_zones[current_node_name]
                 curr_z.current_drones = max(0, curr_z.current_drones - 1)
@@ -120,17 +125,16 @@ class Drones:
             if target_node_name not in (start_node_name, end_node_name):
                 target_z.current_drones += 1
             if link:
-                link.current_drones = max(0,link.current_drones - 1)
-
-
+                link.current_drones = max(0, link.current_drones - 1)
             if target_node_name == end_node_name:
                 self.reached_goal = True
-
-            return f"D{self.drone_id}-{color_node(target_node_name, self.info)}"
-
+            target = color_node(target_node_name, self.info)
+            return f"D{self.drone_id}-{target}"
         return None
+
+
 class Function:
-    def func(self):
+    def func(self) -> None:
         res = PathFinder()
         result = res.main()
         if not result:
@@ -146,18 +150,14 @@ class Function:
 
         try:
             nb_drones = check_validation()
+            if nb_drones is None:
+                return
         except Exception:
-            nb_drones = 12
-        #here take the name of the start and the end
+            sys.exit()
         start_node = paths[0][0]
         end_node = paths[0][-1]
 
         paths = [p for p in paths if p and p[0] == start_node]
-        # print("here the clears path ",paths)
-
-
-
-        #like give the class info for the max drone
         cap_zones = {}
         for name, data in info.items():
             raw_cap = data.get("max_drones", 1)
@@ -166,17 +166,15 @@ class Function:
             cap_zones[name] = Zones(name, int(raw_cap))
         cap_zones[start_node] = Zones(start_node, float("inf"))
         cap_zones[end_node] = Zones(end_node, float("inf"))
-
-
         cap_connections = {}
-
         for start, neighbors in connection.items():
             for end, capacity in neighbors:
-                # print("hfdkjsl",end,capacity)
-                cap_connections[(start, end)] = Connections(start,end,capacity)
+                cap_connections[(start, end)] = Connections(
+                    start,
+                    end,
+                    capacity
+                )
 
-        # Create drones using top non-cyclic paths
-        
         top_paths = paths
 
         all_drones = []
@@ -194,19 +192,16 @@ class Function:
 
         waiting_drones = list(all_drones)
         turn_counter = 0
-
-
         while not all(d.reached_goal for d in all_drones):
             turn_counter += 1
             turn_moves = []
-
-            # advance active drones
-            for d in [d for d in all_drones if d.active and not d.reached_goal]:
+            for d in [
+                d for d in all_drones
+                if d.active and not d.reached_goal
+            ]:
                 move_str = d.move_turn()
                 if move_str:
                     turn_moves.append(move_str)
-
-            # deploy waiting drones
             if waiting_drones:
                 to_deploy = []
                 for candidate in waiting_drones:
@@ -227,20 +222,6 @@ class Function:
 
             if turn_moves:
                 print(f"Turn {turn_counter}: " + " ".join(turn_moves))
-                # if capacity_info:
-                #     for name, zone in cap_zones.items():
-                #         if zone.max_capacity != float("inf"):
-                #             print(
-                #                 f"Zone {name}: "
-                #                 f"{zone.current_drones}/{zone.max_capacity} drones"
-                #             )
-
-                #     for key, link in cap_connections.items():
-                #         print(
-                #             f"Connection {link.start}-{link.end}: "
-                #             f"{link.current_drones}/{link.max_link_capacity} capacity used"
-                #         )
-
             if turn_counter > 500:
                 print("\nError: Simulation aborted (exceeded turn limit).")
                 break
@@ -251,14 +232,14 @@ class Function:
         print(f"Drones reached goal: {reached_to_goal}/{nb_drones}")
         print(f"Total turns: {turn_counter}")
 
-def sefty():
+
+def safety() -> None:
     try:
-        func_tion = Function() 
+        func_tion = Function()
         func_tion.func()
     except Exception:
         print("Error: may syntax")
         sys.exit()
 
-sefty()
-# if __name__ == "__main__":
-#     func()
+
+safety()

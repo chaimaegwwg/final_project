@@ -13,7 +13,10 @@ COLORS = {
 RESET = "\033[0m"
 
 
-def color_node(node_name, info):
+def color_node(
+    node_name: str,
+    info: dict[str, dict[str, str]],
+) -> str:
     color = info.get(node_name, {}).get("color")
 
     if color in COLORS:
