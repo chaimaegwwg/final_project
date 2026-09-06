@@ -237,6 +237,9 @@ def safety() -> None:
     try:
         func_tion = Function()
         func_tion.func()
+    except KeyboardInterrupt:
+        print("\nProgram interrupted by user.")
+        sys.exit(0)
     except Exception:
         print("Error: may syntax")
         sys.exit()
