@@ -1,8 +1,10 @@
 from typing import Dict, List, Any
-from logic import main
+from logic import PathFinder
 from parsing import check_validation
 from colors import color_node
+import sys
 
+capacity_info = "--capacity-info" in sys.argv
 class Zones:
     def __init__(self, name, max_capacity):
         self.name = name
@@ -55,8 +57,6 @@ class Drones:
                     self.transit_link.current_drones = max(0,self.transit_link.current_drones - 1)
                     self.transit_link = None
 
-
-                # free previous zone capacity
                 if current_node_name not in (start_node_name, end_node_name):
                     prev_zone = self.cap_zones[current_node_name]
                     prev_zone.current_drones = max(0, prev_zone.current_drones - 1)
@@ -67,9 +67,6 @@ class Drones:
                     dest_node = end_node_name
                 else:
                     dest_node = self.path[self.step]
-
-                # if dest_node == end_node_name:
-                #     self.reached_goal = True
 
                 return f"D{self.drone_id}-{color_node(dest_node, self.info)}"
 
@@ -88,6 +85,7 @@ class Drones:
 
         # get the connection
         link = self.cap_connections.get((current_node_name, target_node_name))
+        # print("------------------->",link.start,link.end,link.current_drones)
 
         # Check connection capacity
         if link and link.current_drones >= link.max_link_capacity:
@@ -131,138 +129,136 @@ class Drones:
             return f"D{self.drone_id}-{color_node(target_node_name, self.info)}"
 
         return None
+class Function:
+    def func(self):
+        res = PathFinder()
+        result = res.main()
+        if not result:
+            return
 
+        info, connection, paths = result
+        if not paths:
+            print("Error: No valid paths found by pathfinding logic.")
+            return
 
-# Terminal colors
+        if paths and isinstance(paths[0], str):
+            paths = [paths]
 
-def clean_paths(raw_paths: List[List[str]]) -> List[List[str]]:
-    valid = []
-    for p in raw_paths:
-        if len(p) == len(set(p)):
-            valid.append(p)
-    valid.sort(key=len)
-    return valid
+        try:
+            nb_drones = check_validation()
+        except Exception:
+            nb_drones = 12
+        #here take the name of the start and the end
+        start_node = paths[0][0]
+        end_node = paths[0][-1]
 
-
-def func():
-    result = main()
-
-    if not result:
-        return
-
-    info, connection, paths = result
-    if not paths:
-        print("Error: No valid paths found by pathfinding logic.")
-        return
-
-    if paths and isinstance(paths[0], str):
-        paths = [paths]
-
-    try:
-        nb_drones = check_validation()
-    except Exception:
-        nb_drones = 12
-    #here take the name of the start and the end
-    start_node = paths[0][0]
-    end_node = paths[0][-1]
+        paths = [p for p in paths if p and p[0] == start_node]
+        # print("here the clears path ",paths)
 
 
 
-    # clean redundant paths
-    # print("befooore    --->here the clears path ",paths)
-    #here i thing this is not make since also clean_path 
-    paths = [p for p in paths if p and p[0] == start_node]
-    paths = clean_paths(paths)
-    # print("here the clears path ",paths)
+        #like give the class info for the max drone
+        cap_zones = {}
+        for name, data in info.items():
+            raw_cap = data.get("max_drones", 1)
+            if isinstance(raw_cap, (list, tuple)):
+                raw_cap = raw_cap[0] if raw_cap else 1
+            cap_zones[name] = Zones(name, int(raw_cap))
+        cap_zones[start_node] = Zones(start_node, float("inf"))
+        cap_zones[end_node] = Zones(end_node, float("inf"))
 
 
+        cap_connections = {}
 
-    #like give the class info for the max drone
-    cap_zones = {}
-    for name, data in info.items():
-        raw_cap = data.get("max_drones", 1)
-        if isinstance(raw_cap, (list, tuple)):
-            raw_cap = raw_cap[0] if raw_cap else 1
-        cap_zones[name] = Zones(name, int(raw_cap))
-    cap_zones[start_node] = Zones(start_node, float("inf"))
-    cap_zones[end_node] = Zones(end_node, float("inf"))
+        for start, neighbors in connection.items():
+            for end, capacity in neighbors:
+                # print("hfdkjsl",end,capacity)
+                cap_connections[(start, end)] = Connections(start,end,capacity)
 
+        # Create drones using top non-cyclic paths
+        
+        top_paths = paths
 
-    cap_connections = {}
+        all_drones = []
+        for idx in range(nb_drones):
+            assigned_path = top_paths[idx % len(top_paths)]
+            d = Drones(
+                drone_id=idx + 1,
+                info=info,
+                path=assigned_path,
+                zones_dict=cap_zones,
+                connection_data=connection,
+                cap_connections=cap_connections
+            )
+            all_drones.append(d)
 
-    for start, neighbors in connection.items():
-        for end, capacity in neighbors:
-            cap_connections[(start, end)] = Connections(start,end,capacity)
-
-    # Create drones using top non-cyclic paths
-    
-    top_paths = paths
-
-    all_drones = []
-    for idx in range(nb_drones):
-        assigned_path = top_paths[idx % len(top_paths)]
-        d = Drones(
-            drone_id=idx + 1,
-            info=info,
-            path=assigned_path,
-            zones_dict=cap_zones,
-            connection_data=connection,
-            cap_connections=cap_connections
-        )
-        all_drones.append(d)
-
-    waiting_drones = list(all_drones)
-    turn_counter = 0
+        waiting_drones = list(all_drones)
+        turn_counter = 0
 
 
-    while not all(d.reached_goal for d in all_drones):
-        turn_counter += 1
-        turn_moves = []
+        while not all(d.reached_goal for d in all_drones):
+            turn_counter += 1
+            turn_moves = []
 
-        # advance active drones
-        for d in [d for d in all_drones if d.active and not d.reached_goal]:
-            move_str = d.move_turn()
-            if move_str:
-                turn_moves.append(move_str)
+            # advance active drones
+            for d in [d for d in all_drones if d.active and not d.reached_goal]:
+                move_str = d.move_turn()
+                if move_str:
+                    turn_moves.append(move_str)
 
-        # deploy waiting drones
-        if waiting_drones:
-            to_deploy = []
-            for candidate in waiting_drones:
-                first_step_node = candidate.path[1]
-                first_zone = cap_zones[first_step_node]
+            # deploy waiting drones
+            if waiting_drones:
+                to_deploy = []
+                for candidate in waiting_drones:
+                    first_step_node = candidate.path[1]
+                    first_zone = cap_zones[first_step_node]
 
-                if first_zone.current_drones < first_zone.max_capacity:
-                    candidate.active = True
-                    move_str = candidate.move_turn()
-                    if move_str:
-                        turn_moves.append(move_str)
-                        to_deploy.append(candidate)
-                    else:
-                        candidate.active = False
+                    if first_zone.current_drones < first_zone.max_capacity:
+                        candidate.active = True
+                        move_str = candidate.move_turn()
+                        if move_str:
+                            turn_moves.append(move_str)
+                            to_deploy.append(candidate)
+                        else:
+                            candidate.active = False
 
-            for deployed in to_deploy:
-                waiting_drones.remove(deployed)
+                for deployed in to_deploy:
+                    waiting_drones.remove(deployed)
 
-        if turn_moves:
-            print(f"Turn {turn_counter}: " + " ".join(turn_moves))
+            if turn_moves:
+                print(f"Turn {turn_counter}: " + " ".join(turn_moves))
+                # if capacity_info:
+                #     for name, zone in cap_zones.items():
+                #         if zone.max_capacity != float("inf"):
+                #             print(
+                #                 f"Zone {name}: "
+                #                 f"{zone.current_drones}/{zone.max_capacity} drones"
+                #             )
 
-        if turn_counter > 500:
-            print("\nError: Simulation aborted (exceeded turn limit).")
-            break
+                #     for key, link in cap_connections.items():
+                #         print(
+                #             f"Connection {link.start}-{link.end}: "
+                #             f"{link.current_drones}/{link.max_link_capacity} capacity used"
+                #         )
 
-    reached_to_goal = sum(1 for d in all_drones if d.reached_goal)
-    print("\n------------------------------")
-    print(f"{color_node('FINISHED', {'FINISHED': {'color': 'green'}})}")
-    print(f"Drones reached goal: {reached_to_goal}/{nb_drones}")
-    print(f"Total turns: {turn_counter}")
+            if turn_counter > 500:
+                print("\nError: Simulation aborted (exceeded turn limit).")
+                break
+
+        reached_to_goal = sum(1 for d in all_drones if d.reached_goal)
+        print("\n------------------------------")
+        print(f"{color_node('FINISHED', {'FINISHED': {'color': 'green'}})}")
+        print(f"Drones reached goal: {reached_to_goal}/{nb_drones}")
+        print(f"Total turns: {turn_counter}")
 
 def sefty():
     try:
-        func()
-    except ValueError:
+        func_tion = Function() 
+        func_tion.func()
+    except Exception:
         print("Error: may syntax")
         sys.exit()
 
-if __name__ == "__main__":
-    func()
+sefty()
+# if __name__ == "__main__":
+#     func()

@@ -66,7 +66,7 @@ def make_a_dictionary():
     dic = {}
     check_prefix = 0
     with open("configuration.txt", "r") as file:
-  
+        seen_connections = set()
         lines = file.readlines()
 
         for line in lines:
@@ -78,7 +78,6 @@ def make_a_dictionary():
             if ":" not in line:
                 print("Enter key correctly")
                 sys.exit()
-
             key , value= line.split(":", 1)
             key = key.lower().strip()
             #prefix    
@@ -98,6 +97,7 @@ def make_a_dictionary():
 
 def check_connection(connection, names):
     dic = {}
+    seen_connections = set()
     try:
         for x in connection:
             line = x.strip()
@@ -134,17 +134,21 @@ def check_connection(connection, names):
             if start == end:
                 raise ValueError("A connection cannot connect a hub to itself")
 
-            max_link_capacity = 1  # Default capacity
+            connection_key = tuple(sorted((start, end)))
 
-            # Strict metadata validation
+            if connection_key in seen_connections:
+                raise ValueError(f"Duplicate connection: {start}-{end}")
+
+            seen_connections.add(connection_key)
+
+            max_link_capacity = 1 
+
             if attributes_part:
-                # Catch invalid content like [ dhnothinghere ] without '='
                 if "=" not in attributes_part:
                     raise ValueError(f"Invalid connection attribute: [{attributes_part}]")
 
                 pairs = re.findall(r'(\w+)\s*=\s*([\w-]+)', attributes_part)
 
-                # Reject if there are '=' symbols that failed to match valid key=value pairs
                 if attributes_part.count('=') != len(pairs):
                     raise ValueError("Invalid metadata format in connection")
 
@@ -153,10 +157,6 @@ def check_connection(connection, names):
                 clean_attr = re.sub(r'\s*=\s*', '=', attributes_part.strip())
                 parsed_text = " ".join(f"{k.strip()}={v.strip()}" for k, v in pairs)
                 original_normalized = " ".join(clean_attr.split())
-
-                # # Reconstruct and compare to detect extra junk/injected words
-                # parsed_text = " ".join(f"{k} = {v}" for k, v in pairs)
-                # original_normalized = " ".join(attributes_part.replace("=", " = ").split())
 
                 if parsed_text.lower() != original_normalized.lower():
                     raise ValueError(f"Invalid extra tokens or junk in metadata: [{attributes_part}]")
@@ -173,7 +173,6 @@ def check_connection(connection, names):
                     if max_link_capacity <= 0:
                         raise ValueError("max_link_capacity must be greater than 0")
 
-            # Store connections in both directions
             dic.setdefault(start, []).append([end, max_link_capacity])
             dic.setdefault(end, []).append([start, max_link_capacity])
 
@@ -234,9 +233,11 @@ def check_start_end(start_hub):
             raise ValueError("Please enter the color")
         if not isinstance(value, str) or not isinstance(metadata,str):
             raise ValueError("Enter the color and the value as string")
-        if metadata == "color":
-            if value not in lst_color:
-                print(f"Warning: Unknown color '{value}', default color will be used.")
+        if metadata != "color":
+            raise ValueError("Please enter the color")
+
+        if value not in lst_color:
+            raise ValueError(f"Invalid color: {value}")
         index = start_hub.find(']')
         if index != -1 and start_hub[index+1:].strip():
             raise ValueError("Stop there: invalid trailing text after ']'")
@@ -251,7 +252,7 @@ def check_hub(lines):
     dic = make_a_dictionary()
     the_same_name = []
     dic_info = {}
-    
+    seen_coordinates = set()
     for key in ["start_hub", "end_hub"]:
         if key in dic:
             for entry in dic[key]:
@@ -264,13 +265,19 @@ def check_hub(lines):
         
         try:
             parts = re.findall(r'[^ \[]+|\[[^\]]*\]', line)
-            if len(parts) > 4:
-                raise ValueError("Don't write any thing after  :)")
+            if len(parts) > 4 or (len(parts) == 4 and "[" not in parts[3]):
+                raise ValueError("Don't write anything after coordinates")
             if len(parts) < 3:
                 raise ValueError(f"Missing information in hub: {line}")
 
 
             name = parts[0].strip()
+            coordinates = (parts[1], parts[2])
+
+            if coordinates in seen_coordinates:
+                raise ValueError("Duplicate coordinates")
+
+            seen_coordinates.add(coordinates)
             if "-" in name: 
                 raise ValueError("Don't write dashes on the name :)")
             if name in the_same_name: 
@@ -293,6 +300,10 @@ def check_hub(lines):
                     raise ValueError(f"please write = like that: data = value")
                 
                 pairs = re.findall(r'(\w+)\s*=\s*([\w-]+)', meta_content)
+                keys = [k.lower() for k, v in pairs]
+
+                if len(keys) != len(set(keys)):
+                    raise ValueError("Duplicate metadata key")
 
                 if meta_content.count('=') != len(pairs):
                     raise ValueError(f"Metadata syntax error in: [{meta_content}]. Check your '=' usage.")
@@ -302,14 +313,14 @@ def check_hub(lines):
 
                 if parsed_text != original:
                     raise ValueError(
-                        "Invalid metadata syntax: [ ... ] Please don't add something you don't need it"
+                        "Invalid metadata syntax ... "
                     )
                 for k, v in pairs:
                     k = k.lower().strip()
                     v =  v.lower().strip()
                     if k == "zone":
                         if v not in ["priority", "normal", "blocked", "restricted"]:
-                            raise ValueError("Invalid zone type")
+                            raise ValueError(f"Invalid zone type: {v}")
                         hub_data["zone"] = v
                     elif k == "color":
                         hub_data["color"] = v
@@ -339,14 +350,25 @@ def check_validation():
         sys.exit()
 
     nb_drones = dic.get("nb_drones")
-
     start_hub = dic.get("start_hub")
     end_hub = dic.get("end_hub")
     hub = dic.get("hub")
     connection = dic.get("connection")
     try:
-        if not nb_drones or not start_hub or not end_hub or not hub or not connection:
-            raise ValueError("Enter key :)")
+        if not nb_drones:
+            raise ValueError("Missing nb_drones")
+
+        if not start_hub:
+            raise ValueError("Missing start_hub")
+
+        if not end_hub:
+            raise ValueError("Missing end_hub")
+
+        if not hub:
+            raise ValueError("Missing hub")
+
+        if not connection:
+            raise ValueError("Missing connection")
         nb_drones = ''.join(dic["nb_drones"])
         # nb_drones = nb_drones.strip().replace('"','')
         nb_drones = int(nb_drones)
@@ -354,7 +376,6 @@ def check_validation():
             raise ValueError("Number must of nb_drones be positive")
     except ValueError as e:
         print("Error", e)
-
         sys.exit()
     
     if len(dic["start_hub"]) > 1:
@@ -376,9 +397,11 @@ def check_validation():
         return None
     return nb_drones
 
-def sefty():
-    try:
-        check_validation()
-    except ValueError:
-        print("Error: may syntax")
-        sys.exit()
+# def sefty():
+#     try:
+#         check_validation()
+#     except ValueError:
+#         print("Error: may syntax")
+#         sys.exit()
+
+# sefty()
